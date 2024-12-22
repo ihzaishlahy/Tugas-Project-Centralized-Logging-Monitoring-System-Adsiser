@@ -1,0 +1,64 @@
+version: '3.8'
+services:
+  Elasticsearch:
+    image: elasticsearch:8.17.0
+    container_name: elasticsearch-adsiser-centralizedlogging
+    restart: always
+    volumes:
+      - /home/ubuntu/elk-stack/elasticsearch.yml:/usr/share/elasticsearch/config/elasticsearch.yml
+      - /home/ubuntu/elk-stack/certs:/usr/share/elasticsearch/config/certs
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=true
+      - xpack.security.http.ssl.enabled=true
+      - xpack.security.http.ssl.key=/usr/share/elasticsearch/config/certs/elasticsearch.key
+      - xpack.security.http.ssl.certificate=/usr/share/elasticsearch/config/certs/elasticsearch.crt
+      - xpack.security.http.ssl.certificate_authorities=/usr/share/elasticsearch/config/certs/ca.crt
+    ports:
+      - '9200:9200'
+      - '9300:9300'
+    networks:
+      - elk
+
+  Logstash:
+    image: logstash:8.17.0
+    container_name: logstash
+    restart: always
+    volumes:
+      - /home/ubuntu/elk-stack/logstash.conf:/usr/share/logstash/pipeline/logstash.conf
+      - /home/ubuntu/elk-stack/certs:/usr/share/logstash/config/certs
+    command: logstash -f /usr/share/logstash/pipeline/logstash.conf
+    depends_on:
+      - Elasticsearch
+    ports:
+      - '5044:5044'
+    environment:
+      - LS_JAVA_OPTS="-Xmx256m -Xms256m"
+    networks:
+      - elk
+
+  Kibana:
+    image: kibana:8.17.0
+    container_name: kibana
+    restart: always
+    volumes:
+      - /home/ubuntu/elk-stack/kibana.yml:/usr/share/kibana/config/kibana.yml
+      - /home/ubuntu/elk-stack/certs:/usr/share/kibana/config/certs
+    ports:
+      - '5601:5601'
+    environment:
+      - SERVER_SSL_ENABLED=true
+      - SERVER_SSL_CERTIFICATE=/usr/share/kibana/config/certs/kibana.crt
+      - SERVER_SSL_KEY=/usr/share/kibana/config/certs/kibana.key
+      - ELASTICSEARCH_HOSTS=https://elasticsearch-adsiser-centralizedlogging:9200
+      - ELASTICSEARCH_SSL_CERTIFICATEAUTHORITIES=/usr/share/kibana/config/certs/ca.crt
+    depends_on:
+      - Elasticsearch
+    networks:
+      - elk
+
+volumes:
+  elastic_data: {}
+
+networks:
+  elk:
